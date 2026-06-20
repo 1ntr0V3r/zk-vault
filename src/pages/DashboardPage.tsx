@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useVault } from "../context/VaultContext";
 import { VaultView } from "../components/dashboard/VaultView";
 import { GeneratorView } from "../components/dashboard/GeneratorView";
 import { AuditView } from "../components/dashboard/AuditView";
@@ -65,14 +66,38 @@ function SessionTimer({ sessionAge }: { sessionAge: number }) {
 export function DashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, sessionAge } = useAuth();
+  const { user, lockVault, logout, sessionAge } = useAuth();
+  const { clearVault } = useVault();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  /**
+   * handleLogout — GDPR / CNDP coordinated wipe sequence.
+   *
+   * Order is critical:
+   *   1. clearVault()  — zero-encodes and drops all decrypted credential state.
+   *   2. lockVault()   — nulls K_enc (CryptoKey ref), jwt, K_auth_hash, stops timers.
+   *   3. navigate()    — redirect after wipe so no component re-renders with stale data.
+   */
   const handleLogout = () => {
-    logout();
+    clearVault();
+    lockVault();
     navigate("/login");
   };
+
+  /**
+   * handleSignOut — full "Sign Out" path; semantically identical security wipe
+   * to lockVault but navigates to the landing page and (in production) sends
+   * the JWT to POST /api/v1/auth/logout for server-side JTI revocation.
+   */
+  const handleSignOut = () => {
+    clearVault();
+    logout();
+    navigate("/");
+  };
+
+  // Suppress unused variable lint — handleSignOut is available for future use
+  void handleSignOut;
 
   const isActive = (path: string) => {
     if (path === "/dashboard") return location.pathname === "/dashboard";
@@ -209,7 +234,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Logout */}
+      {/* Lock & Sign Out — GDPR wipe sequence: clearVault → lockVault */}
       <button
         className="nav-item"
         style={{
@@ -223,7 +248,7 @@ export function DashboardPage() {
         title={collapsed ? "Lock & Sign Out" : undefined}
       >
         <LogOut size={15} />
-        {!collapsed && <span>Lock & Sign Out</span>}
+        {!collapsed && <span>Lock &amp; Sign Out</span>}
       </button>
 
       {/* Expand button when collapsed */}

@@ -13,6 +13,7 @@ import {
   Info,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useVault } from "../../context/VaultContext";
 import { useNavigate } from "react-router-dom";
 
 interface SettingRowProps {
@@ -63,7 +64,8 @@ function SettingRow({ icon, title, description, action, danger }: SettingRowProp
 }
 
 export function SettingsView() {
-  const { user, sessionAge, logout } = useAuth();
+  const { user, sessionAge, lockVault, logout } = useAuth();
+  const { clearVault } = useVault();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState(true);
@@ -75,21 +77,33 @@ export function SettingsView() {
   const sessionMins = Math.floor(sessionAge / 60);
   const sessionSecs = sessionAge % 60;
 
+  /**
+   * handleLock — "Lock Vault" path.
+   * GDPR / CNDP wipe sequence: clearVault() → lockVault() → navigate.
+   */
   const handleLock = () => {
     if (!lockConfirm) {
       setLockConfirm(true);
-      setTimeout(() => setLockConfirm(false), 4000);
+      setTimeout(() => setLockConfirm(false), 4_000);
     } else {
-      logout();
+      clearVault();
+      lockVault();
       navigate("/login");
     }
   };
 
+  /**
+   * handlePurge — "Purge Session & Sign Out" path.
+   * In production: also sends DELETE /api/v1/auth/logout to revoke the JWT JTI
+   * in Redis before clearing local state.
+   * GDPR / CNDP wipe sequence: clearVault() → logout() → navigate.
+   */
   const handlePurge = () => {
     if (!purgeConfirm) {
       setPurgeConfirm(true);
-      setTimeout(() => setPurgeConfirm(false), 4000);
+      setTimeout(() => setPurgeConfirm(false), 4_000);
     } else {
+      clearVault();
       logout();
       navigate("/");
     }
